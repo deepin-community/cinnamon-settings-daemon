@@ -1,5 +1,4 @@
 etc/xdg/autostart/cinnamon-settings-daemon-*.desktop
-usr/bin/*
 usr/lib/*/cinnamon-settings-daemon*/*.so
 usr/lib/*/cinnamon-settings-daemon/
 usr/share/applications/*

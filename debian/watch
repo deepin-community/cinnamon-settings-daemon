@@ -1,3 +1,2 @@
-version=3
-opts="dversionmangle=s/\+repack//;s/\+dfsg//;s/\+up[0-9]//,filenamemangle=s/.*\/(.*)/cinnamon-settings-daemon-$1/" \
-  https://github.com/linuxmint/cinnamon-settings-daemon/tags .*/v?(\d.*)\.(?:tgz|tar\.(?:gz|bz2|xz))
+version=4
+https://github.com/linuxmint/cinnamon-settings-daemon/tags (?:.*?/)?v?(\d[\d.]*)@ARCHIVE_EXT@

@@ -78,7 +78,8 @@
 #define GNOME_KEYRING_DBUS_PATH "/org/gnome/keyring/daemon"
 #define GNOME_KEYRING_DBUS_INTERFACE "org.gnome.keyring.Daemon"
 
-#define OSD_ALL_OUTPUTS -1
+#define OSD_ALL_OUTPUTS_X -1
+#define OSD_ALL_OUTPUTS_Y -1
 
 static const gchar introspection_xml[] =
 "<node>"
@@ -111,8 +112,8 @@ static const gchar kb_introspection_xml[] =
 #define SETTINGS_INTERFACE_DIR "org.cinnamon.desktop.interface"
 #define SETTINGS_POWER_DIR "org.cinnamon.settings-daemon.plugins.power"
 #define SETTINGS_XSETTINGS_DIR "org.cinnamon.settings-daemon.plugins.xsettings"
-#define SETTINGS_TOUCHPAD_DIR "org.cinnamon.settings-daemon.peripherals.touchpad"
-#define TOUCHPAD_ENABLED_KEY "touchpad-enabled"
+#define SETTINGS_TOUCHPAD_DIR "org.cinnamon.desktop.peripherals.touchpad"
+#define TOUCHPAD_SEND_EVENTS_KEY "send-events"
 #define HIGH_CONTRAST "HighContrast"
 
 #define VOLUME_STEP 5           /* percents for one volume button press */
@@ -182,13 +183,9 @@ struct CsdMediaKeysManagerPrivate
         GDBusNodeInfo   *kb_introspection_data;
         GDBusConnection *connection;
         GCancellable    *bus_cancellable;
-        GDBusProxy      *xrandr_proxy;
         GCancellable    *cancellable;
 
         guint            start_idle_id;
-
-        GSettings       *media_key_settings;
-        guint            execute_delay_id;
 
         MprisController *mpris_controller;
 
@@ -317,76 +314,10 @@ get_keyring_env (CsdMediaKeysManager *manager)
 	return envp;
 }
 
-static GtkWidget *
-create_dummy_window (GdkScreen *screen)
-{
-  GtkWidget *window;
-
-  window = gtk_window_new (GTK_WINDOW_POPUP);
-
-  gtk_window_move (GTK_WINDOW (window), -100, -100);
-  gtk_window_resize (GTK_WINDOW (window), 10, 10);
-  gtk_widget_show (window);
-
-  return window;
-}
-
-static gboolean
-grab_available (void)
-{
-        GdkDisplay *display;
-        GdkScreen *screen;
-        GdkSeat *seat;
-        GdkGrabStatus res;
-        GtkWidget *dummy_window;
-        gboolean available = FALSE;
-
-        display = gdk_display_get_default ();
-        screen = gdk_display_get_default_screen (display);
-        seat = gdk_display_get_default_seat (display);
-
-        dummy_window = create_dummy_window (screen);
-
-        res = gdk_seat_grab (seat,
-                             gtk_widget_get_window (dummy_window),
-                             GDK_SEAT_CAPABILITY_ALL,
-                             FALSE,
-                             NULL,
-                             NULL,
-                             NULL,
-                             NULL);
-
-        if (res == GDK_GRAB_SUCCESS) {
-                available = TRUE;
-                gdk_seat_ungrab (seat);
-        }
-
-        gtk_widget_destroy (dummy_window);
-
-        return available;
-}
-
-typedef struct {
-        CsdMediaKeysManager *manager;
-        gchar               *cmd;
-        gboolean             need_term;
-        gboolean             need_grab;
-        gint                 grab_try_count;
-} ExecuteData;
-
-#define MAX_GRAB_ATTEMPTS 3
-
 static void
-free_exec_data (ExecuteData *data)
-{
-    g_free (data->cmd);
-    g_slice_free (ExecuteData, data);
-}
-
-static void
-do_execute (CsdMediaKeysManager *manager,
-            const gchar         *cmd,
-            gboolean             need_term)
+execute (CsdMediaKeysManager *manager,
+         char                *cmd,
+         gboolean             need_term)
 {
         gboolean retval;
         char   **argv;
@@ -434,59 +365,6 @@ do_execute (CsdMediaKeysManager *manager,
         g_free (exec);
 }
 
-static gboolean
-execute_callback (gpointer data)
-{
-        ExecuteData *exec_data = (ExecuteData *) data;
-        CsdMediaKeysManager *manager = exec_data->manager;
-
-        if (exec_data->need_grab && !grab_available ()) {
-            if (exec_data->grab_try_count < MAX_GRAB_ATTEMPTS) {
-                    exec_data->grab_try_count++;
-
-                    return G_SOURCE_CONTINUE;
-            } else {
-                g_warning ("Unable to grab the keyboard/mouse prior to running: %s", exec_data->cmd);
-
-                free_exec_data (exec_data);
-                manager->priv->execute_delay_id = 0;
-
-                return G_SOURCE_REMOVE;
-            }
-        }
-
-        do_execute (manager, exec_data->cmd, exec_data->need_term);
-
-        free_exec_data (exec_data);
-        manager->priv->execute_delay_id = 0;
-
-        return G_SOURCE_REMOVE;
-}
-
-static void
-execute (CsdMediaKeysManager *manager,
-         gchar               *command,
-         gboolean             need_term,
-         gboolean             need_grab)
-{
-    CsdMediaKeysManagerPrivate *priv = manager->priv;
-    gint delay;
-
-    if (priv->execute_delay_id > 0) {
-            g_source_remove (priv->execute_delay_id);
-    }
-
-    ExecuteData *data = g_slice_new0 (ExecuteData);
-
-    data->manager = manager;
-    data->cmd = g_strdup (command);
-    data->need_term = need_term;
-    data->need_grab = need_grab;
-
-    delay = g_settings_get_uint (priv->media_key_settings, "exec-delay");
-
-    priv->execute_delay_id = g_timeout_add (delay, (GSourceFunc) execute_callback, data);
-}
 
 static void 
 ensure_cancellable (GCancellable **cancellable)
@@ -513,7 +391,8 @@ static void
 show_osd (CsdMediaKeysManager *manager,
           const char          *icon,
           int                  level,
-          int                  monitor)
+          int                  outx,
+          int                  outy)
 {
         GVariantBuilder builder;
 
@@ -531,9 +410,13 @@ show_osd (CsdMediaKeysManager *manager,
         if (level >= 0)
                 g_variant_builder_add (&builder, "{sv}",
                                        "level", g_variant_new_int32 (level));
-        if (monitor >= 0)
+        if (outx >= 0 && outy >= 0) {
+                g_debug ("Calling showOSD with coordinates: %d, %d", outx, outy);
                 g_variant_builder_add (&builder, "{sv}",
-                                       "monitor", g_variant_new_int32 (monitor));
+                                       "monitor_x", g_variant_new_int32 (outx));
+                g_variant_builder_add (&builder, "{sv}",
+                                       "monitor_y", g_variant_new_int32 (outy));
+        }
         g_variant_builder_close (&builder);
 
         ensure_cancellable (&manager->priv->cinnamon_cancellable);
@@ -644,7 +527,7 @@ do_terminal_action (CsdMediaKeysManager *manager)
         term = g_settings_get_string (settings, "exec");
 
         if (term)
-        execute (manager, term, FALSE, FALSE);
+        execute (manager, term, FALSE);
 
         g_free (term);
         g_object_unref (settings);
@@ -660,7 +543,7 @@ do_calculator_action (CsdMediaKeysManager *manager)
         calc = g_settings_get_string (settings, "exec");
 
         if (calc)
-        execute (manager, calc, FALSE, FALSE);
+        execute (manager, calc, FALSE);
 
         g_free (calc);
         g_object_unref (settings);
@@ -674,7 +557,7 @@ cinnamon_session_shutdown (CsdMediaKeysManager *manager)
 
 	/* Shouldn't happen, but you never know */
 	if (manager->priv->connection == NULL) {
-		execute (manager, "cinnamon-session-quit --logout", FALSE, FALSE);
+		execute (manager, "cinnamon-session-quit --logout", FALSE);
 		return;
 	}
 
@@ -700,7 +583,7 @@ cinnamon_session_shutdown (CsdMediaKeysManager *manager)
 static void
 do_logout_action (CsdMediaKeysManager *manager)
 {
-        execute (manager, "cinnamon-session-quit --logout", FALSE, FALSE);
+        execute (manager, "cinnamon-session-quit --logout", FALSE);
 }
 
 static void
@@ -750,7 +633,7 @@ do_eject_action (CsdMediaKeysManager *manager)
         }
 
         /* Show the dialogue */
-        show_osd (manager, "media-eject-symbolic", -1, OSD_ALL_OUTPUTS);
+        show_osd (manager, "media-eject-symbolic", -1, OSD_ALL_OUTPUTS_X, OSD_ALL_OUTPUTS_Y);
 
         /* Clean up the drive selection and exit if no suitable
          * drives are found */
@@ -778,7 +661,7 @@ do_home_key_action (CsdMediaKeysManager *manager,
 
     path = g_strdup_printf ("xdg-open %s", g_get_home_dir ());
 
-    execute (manager, path, FALSE, FALSE);
+    execute (manager, path, FALSE);
 
     g_free (path);
 }
@@ -804,7 +687,7 @@ do_touchpad_osd_action (CsdMediaKeysManager *manager, gboolean state)
 {
     show_osd (manager,
               state ? "input-touchpad-symbolic" : "touchpad-disabled-symbolic",
-              -1, OSD_ALL_OUTPUTS);
+              -1, OSD_ALL_OUTPUTS_X, OSD_ALL_OUTPUTS_Y);
 }
 
 static void
@@ -813,17 +696,20 @@ do_touchpad_action (CsdMediaKeysManager *manager)
         GSettings *settings;
         gboolean state;
 
-        if (touchpad_is_present () == FALSE) {
+        if (!touchpad_is_present ()) {
                 do_touchpad_osd_action (manager, FALSE);
                 return;
         }
 
         settings = g_settings_new (SETTINGS_TOUCHPAD_DIR);
-        state = g_settings_get_boolean (settings, TOUCHPAD_ENABLED_KEY);
+        state = g_settings_get_enum (settings, TOUCHPAD_SEND_EVENTS_KEY) ==
+            C_DESKTOP_DEVICE_SEND_EVENTS_ENABLED ||
+            (C_DESKTOP_DEVICE_SEND_EVENTS_DISABLED_ON_EXTERNAL_MOUSE && !mouse_is_present ());
 
         do_touchpad_osd_action (manager, !state);
 
-        g_settings_set_boolean (settings, TOUCHPAD_ENABLED_KEY, !state);
+        g_settings_set_enum (settings, TOUCHPAD_SEND_EVENTS_KEY, (state) ? C_DESKTOP_DEVICE_SEND_EVENTS_DISABLED :
+                                                                           C_DESKTOP_DEVICE_SEND_EVENTS_ENABLED);
         g_object_unref (settings);
 }
 
@@ -841,7 +727,7 @@ show_sound_osd (CsdMediaKeysManager *manager,
 
     icon = get_icon_name_for_volume (muted, vol, is_mic);
 
-    show_osd (manager, icon, vol, OSD_ALL_OUTPUTS);
+    show_osd (manager, icon, vol, OSD_ALL_OUTPUTS_X, OSD_ALL_OUTPUTS_Y);
 
     if (quiet == FALSE && sound_changed != FALSE && muted == FALSE) {
         gboolean enabled = g_settings_get_boolean (manager->priv->sound_settings, "volume-sound-enabled");
@@ -1038,7 +924,7 @@ do_sound_action (CsdMediaKeysManager *manager,
                 /* When coming out of mute only increase the volume if it was 0 */
                 if (!old_muted || old_vol_pa == 0) {
                         if (old_vol_pa % vol_step_pa > 0 && !CROSSING_PA_NORM (old_vol_pa, vol_step_pa)) {
-                                new_vol_pa = MIN (old_vol_pa / vol_step_pa * vol_step_pa, max_vol_pa);
+                                new_vol_pa = MIN (old_vol_pa / vol_step_pa * vol_step_pa + vol_step_pa, max_vol_pa);
                         } else {
                                 new_vol_pa = MIN (old_vol_pa / vol_step_pa * vol_step_pa + vol_step_pa, max_vol_pa);
                         }
@@ -1335,7 +1221,7 @@ csd_media_player_key_pressed (CsdMediaKeysManager *manager,
         if (!have_listeners) {
                 if (!mpris_controller_key (manager->priv->mpris_controller, key)) {
                 /* Popup a dialog with an (/) icon */
-                    show_osd (manager, "action-unavailable-symbolic", -1, OSD_ALL_OUTPUTS);
+                    show_osd (manager, "action-unavailable-symbolic", -1, OSD_ALL_OUTPUTS_X, OSD_ALL_OUTPUTS_Y);
                  }
                 return TRUE;
         }
@@ -1417,82 +1303,6 @@ do_multimedia_player_action (CsdMediaKeysManager *manager,
 }
 
 static void
-on_xrandr_action_call_finished (GObject             *source_object,
-                                GAsyncResult        *res,
-                                CsdMediaKeysManager *manager)
-{
-        GError *error = NULL;
-        GVariant *variant;
-        char *action;
-
-        action = g_object_get_data (G_OBJECT (source_object),
-                                    "csd-media-keys-manager-xrandr-action");
-
-        variant = g_dbus_proxy_call_finish (G_DBUS_PROXY (source_object), res, &error);
-
-        g_object_unref (manager->priv->cancellable);
-        manager->priv->cancellable = NULL;
-
-        if (error != NULL) {
-                g_warning ("Unable to call '%s': %s", action, error->message);
-                g_error_free (error);
-        } else {
-                g_variant_unref (variant);
-        }
-
-        g_free (action);
-}
-
-static void
-do_xrandr_action (CsdMediaKeysManager *manager,
-                  const char          *action,
-                  gint64               timestamp)
-{
-        CsdMediaKeysManagerPrivate *priv = manager->priv;
-
-        if (priv->connection == NULL || priv->xrandr_proxy == NULL) {
-                g_warning ("No existing D-Bus connection trying to handle XRANDR keys");
-                return;
-        }
-
-        if (priv->cancellable != NULL) {
-                g_debug ("xrandr action already in flight");
-                return;
-        }
-
-        priv->cancellable = g_cancellable_new ();
-
-        g_object_set_data (G_OBJECT (priv->xrandr_proxy),
-                           "csd-media-keys-manager-xrandr-action",
-                           g_strdup (action));
-
-        g_dbus_proxy_call (priv->xrandr_proxy,
-                           action,
-                           g_variant_new ("(x)", timestamp),
-                           G_DBUS_CALL_FLAGS_NONE,
-                           -1,
-                           priv->cancellable,
-                           (GAsyncReadyCallback) on_xrandr_action_call_finished,
-                           manager);
-}
-
-static gboolean
-do_video_out_action (CsdMediaKeysManager *manager,
-                     gint64               timestamp)
-{
-        do_xrandr_action (manager, "VideoModeSwitch", timestamp);
-        return FALSE;
-}
-
-static gboolean
-do_video_rotate_action (CsdMediaKeysManager *manager,
-                        gint64               timestamp)
-{
-        do_xrandr_action (manager, "Rotate", timestamp);
-        return FALSE;
-}
-
-static void
 do_video_rotate_lock_action (CsdMediaKeysManager *manager,
                              gint64               timestamp)
 {
@@ -1505,7 +1315,7 @@ do_video_rotate_lock_action (CsdMediaKeysManager *manager,
         g_object_unref (settings);
 
         show_osd (manager, locked ? "rotation-locked-symbolic"
-                                  : "rotation-allowed-symbolic", -1, OSD_ALL_OUTPUTS);
+                                  : "rotation-allowed-symbolic", -1, OSD_ALL_OUTPUTS_X, OSD_ALL_OUTPUTS_Y);
 }
 
 static void
@@ -1635,7 +1445,7 @@ do_config_power_action (CsdMediaKeysManager *manager,
                 csd_power_hibernate ();
                 break;
         case CSD_POWER_ACTION_BLANK:
-                execute (manager, "cinnamon-screensaver-command --lock", FALSE, FALSE);
+                execute (manager, "cinnamon-screensaver-command --lock", FALSE);
                 break;
         case CSD_POWER_ACTION_NOTHING:
                 /* these actions cannot be handled by media-keys and
@@ -1651,7 +1461,7 @@ update_screen_cb (GObject             *source_object,
 {
         GError *error = NULL;
         guint percentage;
-        int output_id;
+        int outx, outy;
         GVariant *variant;
         CsdMediaKeysManager *manager = CSD_MEDIA_KEYS_MANAGER (user_data);
 
@@ -1665,8 +1475,8 @@ update_screen_cb (GObject             *source_object,
         }
 
         /* update the dialog with the new value */
-        g_variant_get (variant, "(ui)", &percentage, &output_id);
-        show_osd (manager, "display-brightness-symbolic", percentage, output_id);
+        g_variant_get (variant, "(uii)", &percentage, &outx, &outy);
+        show_osd (manager, "display-brightness-symbolic", percentage, outx, outy);
         g_variant_unref (variant);
 }
 
@@ -1748,7 +1558,7 @@ update_keyboard_cb (GObject             *source_object,
 
         /* update the dialog with the new value */
         g_variant_get (new_percentage, "(u)", &percentage);
-        show_osd (manager, "keyboard-brightness-symbolic", percentage, OSD_ALL_OUTPUTS);
+        show_osd (manager, "keyboard-brightness-symbolic", percentage, OSD_ALL_OUTPUTS_X, OSD_ALL_OUTPUTS_Y);
         g_variant_unref (new_percentage);
 }
 
@@ -1845,28 +1655,28 @@ do_action (CsdMediaKeysManager *manager,
                 do_url_action (manager, "mailto", timestamp);
                 break;
         case C_DESKTOP_MEDIA_KEY_SCREENSAVER:
-                execute (manager, "cinnamon-screensaver-command --lock", FALSE, FALSE);
+                execute (manager, "cinnamon-screensaver-command --lock", FALSE);
                 break;
         case C_DESKTOP_MEDIA_KEY_HELP:
                 do_url_action (manager, "ghelp", timestamp);
                 break;
         case C_DESKTOP_MEDIA_KEY_SCREENSHOT:
-                execute (manager, "gnome-screenshot", FALSE, FALSE);
+                execute (manager, "gnome-screenshot", FALSE);
                 break;
         case C_DESKTOP_MEDIA_KEY_WINDOW_SCREENSHOT:
-                execute (manager, "gnome-screenshot --window", FALSE, TRUE);
+                execute (manager, "gnome-screenshot --window", FALSE);
                 break;
         case C_DESKTOP_MEDIA_KEY_AREA_SCREENSHOT:
-                execute (manager, "gnome-screenshot --area", FALSE, TRUE);
+                execute (manager, "gnome-screenshot --area", FALSE);
                 break;
         case C_DESKTOP_MEDIA_KEY_SCREENSHOT_CLIP:
-                execute (manager, "gnome-screenshot --clipboard", FALSE, FALSE);
+                execute (manager, "gnome-screenshot --clipboard", FALSE);
                 break;
         case C_DESKTOP_MEDIA_KEY_WINDOW_SCREENSHOT_CLIP:
-                execute (manager, "gnome-screenshot --window --clipboard", FALSE, TRUE);
+                execute (manager, "gnome-screenshot --window --clipboard", FALSE);
                 break;
         case C_DESKTOP_MEDIA_KEY_AREA_SCREENSHOT_CLIP:
-                execute (manager, "gnome-screenshot --area --clipboard", FALSE, TRUE);
+                execute (manager, "gnome-screenshot --area --clipboard", FALSE);
                 break;
         case C_DESKTOP_MEDIA_KEY_TERMINAL:
                 do_terminal_action (manager);
@@ -1898,12 +1708,6 @@ do_action (CsdMediaKeysManager *manager,
                 return do_multimedia_player_action (manager, NULL, "Repeat");
         case C_DESKTOP_MEDIA_KEY_RANDOM:
                 return do_multimedia_player_action (manager, NULL, "Shuffle");
-        case C_DESKTOP_MEDIA_KEY_VIDEO_OUT:
-                do_video_out_action (manager, timestamp);
-                break;
-        case C_DESKTOP_MEDIA_KEY_ROTATE_VIDEO:
-                do_video_rotate_action (manager, timestamp);
-                break;
         case C_DESKTOP_MEDIA_KEY_ROTATE_VIDEO_LOCK:
                 do_video_rotate_lock_action (manager, timestamp);
                 break;
@@ -1989,7 +1793,6 @@ start_media_keys_idle_cb (CsdMediaKeysManager *manager)
         manager->priv->cinnamon_session_settings = g_settings_new("org.cinnamon.SessionManager");
         /* for the power plugin interface code */
         manager->priv->power_settings = g_settings_new (SETTINGS_POWER_DIR);
-        manager->priv->media_key_settings = g_settings_new ("org.cinnamon.settings-daemon.plugins.media-keys");
 
         manager->priv->sound_settings = g_settings_new ("org.cinnamon.desktop.sound");
 
@@ -2122,11 +1925,6 @@ csd_media_keys_manager_stop (CsdMediaKeysManager *manager)
         if (priv->interface_settings) {
                 g_object_unref (priv->interface_settings);
                 priv->interface_settings = NULL;
-        }
-
-        if (priv->media_key_settings) {
-                g_object_unref (priv->media_key_settings);
-                priv->media_key_settings = NULL;
         }
 
         g_clear_object (&priv->sound_settings);
@@ -2368,20 +2166,6 @@ csd_media_keys_manager_finalize (GObject *object)
 }
 
 static void
-xrandr_ready_cb (GObject             *source_object,
-                 GAsyncResult        *res,
-                 CsdMediaKeysManager *manager)
-{
-        GError *error = NULL;
-
-        manager->priv->xrandr_proxy = g_dbus_proxy_new_finish (res, &error);
-        if (manager->priv->xrandr_proxy == NULL) {
-                g_warning ("Failed to get proxy for XRandR operations: %s", error->message);
-                g_error_free (error);
-        }
-}
-
-static void
 upower_ready_cb (GObject             *source_object,
                  GAsyncResult        *res,
                  CsdMediaKeysManager *manager)
@@ -2493,16 +2277,6 @@ on_bus_gotten (GObject             *source_object,
                                                                NULL,
                                                                NULL,
                                                                NULL);
-
-        g_dbus_proxy_new (manager->priv->connection,
-                          G_DBUS_PROXY_FLAGS_NONE,
-                          NULL,
-                          "org.cinnamon.SettingsDaemon.XRANDR_2",
-                          "/org/cinnamon/SettingsDaemon/XRANDR",
-                          "org.cinnamon.SettingsDaemon.XRANDR_2",
-                          NULL,
-                          (GAsyncReadyCallback) xrandr_ready_cb,
-                          manager);
 
         g_dbus_proxy_new (manager->priv->connection,
                           G_DBUS_PROXY_FLAGS_NONE,

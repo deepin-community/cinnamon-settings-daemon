@@ -1,0 +1,296 @@
+Author: Fabio Fantoni <fantonifabio@tiscali.it>
+Date: Sun, 2 Jan 2022 15:24:53 +0100
+Description: [PATCH] don't create links to binaries
+
+creation of link to binaries done by meson with custom python script
+seems to have rare unexpected cases
+so remove remove creation of link to binaries with custom script
+
+Note:
+better symlink creation was recently integrated in meson (in 0.61), in
+future probably is good try it:
+https://mesonbuild.com/Reference-manual_functions.html#install_symlink
+
+Forwarded: no
+---
+--- a/plugins/a11y-settings/meson.build
++++ b/plugins/a11y-settings/meson.build
+@@ -23,11 +23,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-a11y-settings')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-a11y-settings')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-a11y-settings.desktop.in',
+     output: 'cinnamon-settings-daemon-a11y-settings.desktop',
+--- a/plugins/automount/meson.build
++++ b/plugins/automount/meson.build
+@@ -25,11 +25,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-automount')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-automount')
+-endif
+-
+ test_automount_dialog_sources = [
+     'test-automount-dialog.c',
+     'csd-autorun.c',
+--- a/plugins/background/meson.build
++++ b/plugins/background/meson.build
+@@ -25,11 +25,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-background')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-background')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-background.desktop.in',
+     output: 'cinnamon-settings-daemon-background.desktop',
+--- a/plugins/clipboard/meson.build
++++ b/plugins/clipboard/meson.build
+@@ -25,11 +25,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-clipboard')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-clipboard')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-clipboard.desktop.in',
+     output: 'cinnamon-settings-daemon-clipboard.desktop',
+--- a/plugins/color/meson.build
++++ b/plugins/color/meson.build
+@@ -33,11 +33,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-color')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-color')
+-endif
+-
+ test_color_sources = [
+     'gcm-dmi.c',
+     'gcm-edid.c',
+--- a/plugins/common/meson.build
++++ b/plugins/common/meson.build
+@@ -40,11 +40,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-input-helper')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-input-helper')
+-endif
+-
+ install_data(
+     'input-device-example.sh',
+     install_dir: join_paths(datadir, '@0@-@1@'.format(pkgname, api_version)),
+--- a/plugins/datetime/meson.build
++++ b/plugins/datetime/meson.build
+@@ -53,11 +53,6 @@
+         install_dir: libexecdir,
+     )
+ 
+-    meson.add_install_script(ln_script, libexecdir, bindir, 'csd-datetime-mechanism')
+-    if libexecdir != pkglibdir
+-        meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-datetime-mechanism')
+-    endif
+-
+     executable(
+         'test-datetime',
+         test_timezone_sources,
+--- a/plugins/dummy/meson.build
++++ b/plugins/dummy/meson.build
+@@ -23,5 +23,3 @@
+     install: true,
+     install_dir: libexecdir,
+ )
+-
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-dummy')
+--- a/plugins/housekeeping/meson.build
++++ b/plugins/housekeeping/meson.build
+@@ -31,11 +31,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-housekeeping')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-housekeeping')
+-endif
+-
+ test_disk_space_sources = [
+     'csd-disk-space-test.c',
+     housekeeping_common_sources,
+--- a/plugins/keyboard/meson.build
++++ b/plugins/keyboard/meson.build
+@@ -30,11 +30,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-keyboard')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-keyboard')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-keyboard.desktop.in',
+     output: 'cinnamon-settings-daemon-keyboard.desktop',
+--- a/plugins/media-keys/meson.build
++++ b/plugins/media-keys/meson.build
+@@ -31,11 +31,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-media-keys')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-media-keys')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-media-keys.desktop.in',
+     output: 'cinnamon-settings-daemon-media-keys.desktop',
+--- a/plugins/power/meson.build
++++ b/plugins/power/meson.build
+@@ -67,11 +67,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-power')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-power')
+-endif
+-
+ if gudev.found()
+     executable(
+         'csd-backlight-helper',
+@@ -84,11 +79,6 @@
+         install: true,
+         install_dir: libexecdir,
+     )
+-
+-    meson.add_install_script(ln_script, libexecdir, bindir, 'csd-backlight-helper')
+-    if libexecdir != pkglibdir
+-        meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-backlight-helper')
+-    endif
+ endif
+ 
+ configure_file(
+--- a/plugins/print-notifications/cinnamon-settings-daemon-print-notifications.desktop.in
++++ b/plugins/print-notifications/cinnamon-settings-daemon-print-notifications.desktop.in
+@@ -1,7 +1,7 @@
+ [Desktop Entry]
+ Type=Application
+ Name=Cinnamon Settings Daemon - print-notifications
+-Exec=csd-print-notifications
++Exec=@libexecdir@/csd-print-notifications
+ OnlyShowIn=X-Cinnamon;
+ NoDisplay=true
+ X-GNOME-Autostart-Phase=Initialization
+--- a/plugins/print-notifications/meson.build
++++ b/plugins/print-notifications/meson.build
+@@ -29,11 +29,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-print-notifications')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-print-notifications')
+-endif
+-
+ executable(
+     'csd-printer',
+     printer_sources,
+@@ -43,11 +38,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-printer')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-printer')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-print-notifications.desktop.in',
+     output: 'cinnamon-settings-daemon-print-notifications.desktop',
+--- a/plugins/screensaver-proxy/meson.build
++++ b/plugins/screensaver-proxy/meson.build
+@@ -23,11 +23,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-screensaver-proxy')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-screensaver-proxy')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-screensaver-proxy.desktop.in',
+     output: 'cinnamon-settings-daemon-screensaver-proxy.desktop',
+--- a/plugins/smartcard/meson.build
++++ b/plugins/smartcard/meson.build
+@@ -25,11 +25,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-smartcard')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-smartcard')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-smartcard.desktop.in',
+     output: 'cinnamon-settings-daemon-smartcard.desktop',
+--- a/plugins/xsettings/meson.build
++++ b/plugins/xsettings/meson.build
+@@ -39,11 +39,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-xsettings')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-xsettings')
+-endif
+-
+ executable(
+     'test-gtk-modules',
+     test_xsettings_sources,
+--- a/plugins/wacom/meson.build
++++ b/plugins/wacom/meson.build
+@@ -31,11 +31,6 @@
+   install_dir: libexecdir
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-wacom')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-wacom')
+-endif
+-
+ led_deps = [
+   gudev,
+   math
+--- a/plugins/settings-remap/meson.build
++++ b/plugins/settings-remap/meson.build
+@@ -22,11 +22,6 @@
+     install_dir: libexecdir,
+ )
+ 
+-meson.add_install_script(ln_script, libexecdir, bindir, 'csd-settings-remap')
+-if libexecdir != pkglibdir
+-    meson.add_install_script(ln_script, libexecdir, pkglibdir, 'csd-settings-remap')
+-endif
+-
+ configure_file(
+     input: 'cinnamon-settings-daemon-settings-remap.desktop.in',
+     output: 'cinnamon-settings-daemon-settings-remap.desktop',
