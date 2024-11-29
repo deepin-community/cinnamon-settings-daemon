@@ -12,14 +12,19 @@
 #include "config.h"
 
 #include <stdlib.h>
+#include <signal.h>
 
 #include <glib/gi18n.h>
-#include <gtk/gtk.h>
+#include <glib-unix.h>
 #include <libnotify/notify.h>
 
 #ifndef PLUGIN_NAME
 #error Include PLUGIN_CFLAGS in the daemon s CFLAGS
 #endif /* !PLUGIN_NAME */
+
+#ifndef INIT_LIBNOTIFY
+#define INIT_LIBNOTIFY FALSE
+#endif
 
 #define GNOME_SESSION_DBUS_NAME           "org.gnome.SessionManager"
 #define GNOME_SESSION_DBUS_PATH           "/org/gnome/SessionManager"
@@ -60,21 +65,14 @@ client_proxy_signal_cb (GDBusProxy *proxy,
                 respond_to_end_session (proxy);
         } else if (g_strcmp0 (signal_name, "Stop") == 0) {
                 g_debug ("Got Stop signal");
-                /* Ideally, we would call gtk_main_quit (); here.
-                   Instead, do nothing.
-                   cinnamon-session-manager doesn't wait in this STOP PHASE.
-                   so we're not delaying the logout/shutdown sequence.
-                   Also, if another process is lagging and delaying previous
-                   phases, we don't want to lose CSD in the background.
-                   We want CSD plugins to run until the very very end of the session.
-                */
+                g_main_loop_quit ((GMainLoop *) user_data);
         }
 }
 
 static void
 on_client_registered (GObject             *source_object,
                       GAsyncResult        *res,
-                      gpointer             user_data)
+                      GMainLoop           *loop)
 {
         GVariant *variant;
         GDBusProxy *client_proxy;
@@ -111,14 +109,14 @@ on_client_registered (GObject             *source_object,
         }
 
         g_signal_connect (client_proxy, "g-signal",
-                          G_CALLBACK (client_proxy_signal_cb), NULL);
+                          G_CALLBACK (client_proxy_signal_cb), loop);
 
         g_free (object_path);
         g_variant_unref (variant);
 }
 
 static void
-register_with_cinnamon_session (void)
+register_with_cinnamon_session (GMainLoop *loop)
 {
     const char *startup_id;
     GError *error = NULL;
@@ -157,7 +155,20 @@ register_with_cinnamon_session (void)
               -1,
               NULL,
               (GAsyncReadyCallback) on_client_registered,
-              NULL);
+              loop);
+}
+
+static gboolean
+handle_signal (gpointer user_data)
+{
+    GMainLoop *loop = (GMainLoop *) user_data;
+
+    g_debug ("Got SIGTERM - shutting down");
+
+    if (g_main_loop_is_running (loop))
+        g_main_loop_quit (loop);
+
+    return G_SOURCE_REMOVE;
 }
 
 int
@@ -165,6 +176,9 @@ main (int argc, char **argv)
 {
         GError  *error;
         gboolean started;
+        GOptionContext *context;
+        GMainLoop *loop;
+
 
         bindtextdomain (GETTEXT_PACKAGE, CINNAMON_SETTINGS_LOCALEDIR);
         bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
@@ -174,35 +188,35 @@ main (int argc, char **argv)
         g_type_ensure (G_TYPE_DBUS_CONNECTION);
         g_type_ensure (G_TYPE_DBUS_PROXY);
 
-        gdk_set_allowed_backends ("x11");
-
-        notify_init ("cinnamon-settings-daemon");
-
-        if (FORCE_GDK_SCALE) {
-          g_setenv ("GDK_SCALE", "1", TRUE);
+        if (INIT_LIBNOTIFY) {
+            notify_init ("cinnamon-settings-daemon");
         }
 
         error = NULL;
-        if (! gtk_init_with_args (&argc, &argv, PLUGIN_NAME, entries, NULL, &error)) {
-            if (error != NULL) {
+
+
+        context = g_option_context_new (NULL);
+        g_option_context_add_main_entries (context, entries, GETTEXT_PACKAGE);
+        if (!g_option_context_parse (context, &argc, &argv, &error)) {
                 fprintf (stderr, "%s\n", error->message);
                 g_error_free (error);
-            }
-
-            exit (1);
+                exit (1);
         }
+        g_option_context_free (context);
 
-        if (FORCE_GDK_SCALE) {
-          g_unsetenv ("GDK_SCALE");
-        }
+        loop = g_main_loop_new (NULL, FALSE);
 
-        if (verbose)
+        g_unix_signal_add (SIGTERM, (GSourceFunc) handle_signal, loop);
+
+        if (verbose) {
                 g_setenv ("G_MESSAGES_DEBUG", "all", TRUE);
+                setlinebuf (stdout);
+        }
 
         if (timeout > 0) {
                 guint id;
-                id = g_timeout_add_seconds (timeout, (GSourceFunc) gtk_main_quit, NULL);
-                g_source_set_name_by_id (id, "[cinnamon-settings-daemon] gtk_main_quit");
+                id = g_timeout_add_seconds (timeout, (GSourceFunc) g_main_loop_quit, loop);
+                g_source_set_name_by_id (id, "[cinnamon-settings-daemon] g_main_loop_quit");
         }
 
         manager = NEW ();
@@ -210,12 +224,12 @@ main (int argc, char **argv)
         error = NULL;
 
         if (REGISTER_BEFORE_STARTING) {
-          register_with_cinnamon_session ();
+          register_with_cinnamon_session (loop);
           started = START (manager, &error);
         }
         else {
           started = START (manager, &error);
-          register_with_cinnamon_session ();
+          register_with_cinnamon_session (loop);
         }
 
         if (!started) {
@@ -227,7 +241,7 @@ main (int argc, char **argv)
             exit (1);
         }
 
-        gtk_main ();
+        g_main_loop_run (loop);
 
         STOP (manager);
         g_object_unref (manager);

@@ -5,83 +5,41 @@ Source: https://github.com/linuxmint/cinnamon-settings-daemon.git
 
 Files: *
 Copyright: 2007, Anders Carlsson
-           2009, Bastien Nocera
            2001-2012, Bastien Nocera <hadess@hadess.net>
+           2005-2013, Canonical Ltd, and Rosetta Contributors
            2008, Carlos Garnacho <carlos@imendio.com>
            2009, Chris Coulson <chrisccoulson@googlemail.com>
            2007, David Zeuthen <david@fubar.dk>
-           1989-1991, Free Software Foundation, Inc
+           1989-2009, Free Software Foundation, Inc
            2008, Jens Granseuer <jensgr@gmx.net>
-           2006-2008, Lennart Poettering
-           2008, Lennart Poettering <lennart@poettering.net>
+           2023, Linux Mint
            2007, Matthias Clasen
            2008, Michael J. Chudobiak <mjc@avtechpulse.com>
-           2006, Novell, Inc
-           2002-2005, Paolo Maggi
-           2006, Ray Strode
+           2006-2010, Novell, Inc
+           2012-2013, Przemo Firszt <przemo@firszt.eu>
            2006, Ray Strode <rstrode@redhat.com>
-           2008, Red Hat, Inc
+           2006-2015, Red Hat, Inc
            2005-2011, Richard Hughes <richard@hughsie.com>
            2011, Ritesh Khadgaray <khadgaray@gmail.com>
            2007, Rodrigo Moya
-           2008, Sjoerd Simons <sjoerd@luon.net>
            2008, Soren Sandmann <sandmann@redhat.com>
            2004, Sun Microsystems, Inc
+           1998, Tom Tromey
            2001, Udaltsoft
            2011, Vincent Untz <vuntz@gnome.org>
-           2008, William Jon McCann
-           2008, William Jon McCann <jmccann@redhat.com>
-           2005-2007, William Jon McCann <mccann@jhu.edu>
-           2001, Ximian, Inc
-           2007, AUTHOR
-           2004-2006, Adam Weinberger and the GNOME Foundation
-           2007, Aleś Navicki
-           2012, Bastien Nocera
-           2005, Canonical Ltd
-           2005, Canonical Ltd, and Rosetta Contributors 2005
-           Croatiann team
-           2010, Damyan Ivanov
-           1998-2009, Free Software Foundation Inc
-           2005, Free Software Foundation, Andhra Pradesh
-           1999-2008, Free Software Foundation, Inc
-           2011, Iranian Free Software Users Group (IFSUG.org) translation team
-           2009, Joshua Cummings <jrac@internode.on.net>
-           2006, Lukas Novotny <lukasnov@cvs.gnome.org>
-           2007, Matthias Clasen
-           2008, Michael J. Chudobiak
-           2003-2006, Miloslav Trmac <mitr@volny.cz>
-           2007, Novell
-           2011, Red Hat Inc
-           2011, Red Hat, Inc
-           2011, Richard Hughes
-           2010-2011, Richard Hughes <richard@hughsie.com>
-           2008, Rosetta Contributors and Canonical Ltd 2008
-           2011, Rosetta Contributors and Canonical Ltd 2011
-           2012, Rosetta Contributors and Canonical Ltd 2012
-           2001, Roy-Magne Mo <rmo@sunnmore.net>
-           2003-2005, Sharif FarsiWeb, Inc
-           2011-2012, Swecha Telugu Localisation Team <localization@swecha.net>
-           2009, The Gnome Foundation
-           2007-2011, The Gnome Project
-           2007, William Jon McCann
-           2001, Ximian, Inc
-           2004, Zuza Software Foundation
-           2004, Zuza Software Foundation (Translate.org.za)
-           1999-2012, cinnamon-settings-daemon
-           1999-2011, the author(s) of cinnamon-settings-daemon
+           2005-2008, William Jon McCann <jmccann@redhat.com>
+           2000-2001, Ximian, Inc
 License: GPL-2+
 
 Files: plugins/clipboard/list.c
        plugins/clipboard/list.h
        plugins/clipboard/xutils.c
        plugins/clipboard/xutils.h
-       plugins/mouse/csd-locate-pointer.h
        plugins/xsettings/xsettings-common.c
        plugins/xsettings/xsettings-common.h
        plugins/xsettings/xsettings-manager.c
        plugins/xsettings/xsettings-manager.h
-Copyright: 2001, Jonathan Blandford <jrb@gnome.org>
-           2001, Red Hat, Inc
+Copyright: 2001-2004, Red Hat, Inc
 License: MIT/X11
  Permission to use, copy, modify, distribute, and sell this software and its
  documentation for any purpose is hereby granted without fee, provided that
@@ -175,6 +133,7 @@ License: Permissive
 Files: debian/*
 Copyright: 2008, Sebastien Bacher <seb128@canonical.com>
            2014, Maximiliano Curia <maxy@debian.org>
+           2015-2023, Debian Cinnamon Team <debian-cinnamon@lists.debian.org>
 License: GPL-2+
 
 License: GPL-2+

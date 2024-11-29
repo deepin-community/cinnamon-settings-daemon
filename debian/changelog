@@ -1,3 +1,168 @@
+cinnamon-settings-daemon (6.2.0-1) unstable; urgency=medium
+
+  * New upstream version 6.2.0 (Closes: #1074881)
+  * Update standards version to 4.7.0, no changes needed
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Wed, 03 Jul 2024 21:31:19 +0200
+
+cinnamon-settings-daemon (6.0.0-2) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 31 Mar 2024 14:42:35 +0200
+
+cinnamon-settings-daemon (6.0.0-1) experimental; urgency=medium
+
+  * New upstream version 6.0.0
+  * Add link for new csd-settings-remap
+  * d/patches: refresh and add remove of new link creation
+  * d/control:
+    - bump cinnamon-desktop build-deps/deps to 6.0
+    - bump breaks of reverse deps
+  * Update d/copyright
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 11 Feb 2024 14:37:53 +0100
+
+cinnamon-settings-daemon (5.8.1-3) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 29 Sep 2023 13:27:08 +0200
+
+cinnamon-settings-daemon (5.8.1-2) experimental; urgency=medium
+
+  * d/control: make pipewire default doing reverse of priority
+    of pulseaudio and pipewire in the Recommends
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 03 Sep 2023 21:20:05 +0200
+
+cinnamon-settings-daemon (5.8.1-1) experimental; urgency=medium
+
+  * New upstream version 5.8.1
+  * d/control:
+    - bump cinnamon-desktop build-dep/dep to 5.8
+    - bump breaks of reverse deps
+    - remove python3-tinycss from deps
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Fri, 14 Jul 2023 13:10:16 +0200
+
+cinnamon-settings-daemon (5.6.2-3) unstable; urgency=medium
+
+  * d/control: add pipewire-pulse alternative to pulseaudio recommend
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Wed, 14 Jun 2023 20:24:31 +0200
+
+cinnamon-settings-daemon (5.6.2-2) unstable; urgency=medium
+
+  * Remove broken symlinks to csd-locate-pointer and csd-list-wacom
+    Thanks to Andreas Beckmann (Closes: #1035860)
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Wed, 10 May 2023 22:15:56 +0200
+
+cinnamon-settings-daemon (5.6.2-1) unstable; urgency=medium
+
+  * New upstream bugfix version 5.6.2
+  * Replace libfontconfig1-dev build-dep. with libfontconfig-dev
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 19 Mar 2023 22:29:11 +0100
+
+cinnamon-settings-daemon (5.6.1-1) unstable; urgency=medium
+
+  [ Debian Janitor ]
+  * Remove constraints unnecessary since buster (oldstable)
+
+  [ Fabio Fantoni ]
+  * New upstream version 5.6.1
+  * Update standards version to 4.6.2, no changes needed
+  * d/control: bump cinnamon-desktop build-dep/dep to 5.6.1
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 08 Jan 2023 21:03:19 +0100
+
+cinnamon-settings-daemon (5.4.5-2) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 14 Aug 2022 11:32:45 +0200
+
+cinnamon-settings-daemon (5.4.5-1) experimental; urgency=medium
+
+  * New upstream version 5.4.5
+  * d/control: add libpango1.0-dev, remove libxtst-dev and
+    xserver-xorg-input-wacom from build-deps
+  * Update d/copyright
+  * Refresh d/patches
+  * d/rules: remove link creation for csd-wacom-osd as was removed
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Tue, 09 Aug 2022 20:41:48 +0200
+
+cinnamon-settings-daemon (5.4.3-1) experimental; urgency=medium
+
+  * New upstream version 5.4.3
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 24 Jul 2022 20:25:20 +0200
+
+cinnamon-settings-daemon (5.4.2-1) experimental; urgency=medium
+
+  * New upstream version 5.4.2
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 17 Jul 2022 21:29:31 +0200
+
+cinnamon-settings-daemon (5.4.1-1) experimental; urgency=medium
+
+  [ Debian Janitor ]
+  * cinnamon-settings-daemon-dev: Add Multi-Arch: same.
+
+  [ Fabio Fantoni ]
+  * New upstream version 5.4.1 (Closes: 897577)
+  * Update d/copyright
+  * d/control:
+    - dump meson required version to 0.47
+    - remove libdbus-glib-1-dev from build-deps
+    - dump deps and breaks of reverse-deps to 5.4
+  * Simplify d/watch
+  * Refresh d/patches
+  * Add removed etc files to maintscript
+  * Specify that rules don't require root
+  * Bumped Standards-Version to 4.6.1
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 10 Jul 2022 22:47:16 +0200
+
+cinnamon-settings-daemon (5.2.0-3) unstable; urgency=medium
+
+  * add myself to uploaders
+  * prepare unstable release
+
+ -- Christoph Martin <martin@uni-mainz.de>  Tue, 25 Jan 2022 19:51:18 +0100
+
+cinnamon-settings-daemon (5.2.0-2) experimental; urgency=medium
+
+  * add a path that remove creation of link to binaries using a
+    script
+  * add symlink to /usr/bin using dh_link to make working the
+    .desktop files that don't have full path
+  * remove tracker-gui and gnome-search-tool from suggests
+
+ -- Fabio Fantoni <fantonifabio@tiscali.it>  Sun, 02 Jan 2022 09:42:19 +0100
+
+cinnamon-settings-daemon (5.2.0-1) experimental; urgency=medium
+
+  [ Joshua Peisach ]
+  * New upstream version 5.2.0
+  * Remove useless --as-needed linker flag, set bindnow to all
+  * Add myself as Uploader
+  * Bump Cinnamon deps and breaks to 5.2
+
+  [ Laurent Bigonville ]
+  * Explicitly disable gudev on non-linux architectures, this fixes the FTBFS
+    (Closes: 1001617)
+  * Disable polkit support on non-linux architectures, polkit is not
+    functional on these, only the libraries are built there
+  * Explicitly disable wacom and logind support on non-linux architectures
+  * Drop the libdbus-glib-1-dev dependency in cinnamon-settings-daemon-dev,
+    that looks useless looking at the pkg-config file
+
+ -- Joshua Peisach <itzswirlz2020@outlook.com>  Sat, 04 Dec 2021 12:26:21 -0500
+
 cinnamon-settings-daemon (5.0.4-2) unstable; urgency=medium
 
   * Release to unstable.

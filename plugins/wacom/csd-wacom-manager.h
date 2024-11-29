@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street - Suite 500, Boston, MA 02110-1335, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -27,26 +26,8 @@
 G_BEGIN_DECLS
 
 #define CSD_TYPE_WACOM_MANAGER         (csd_wacom_manager_get_type ())
-#define CSD_WACOM_MANAGER(o)           (G_TYPE_CHECK_INSTANCE_CAST ((o), CSD_TYPE_WACOM_MANAGER, CsdWacomManager))
-#define CSD_WACOM_MANAGER_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), CSD_TYPE_WACOM_MANAGER, CsdWacomManagerClass))
-#define CSD_IS_WACOM_MANAGER(o)        (G_TYPE_CHECK_INSTANCE_TYPE ((o), CSD_TYPE_WACOM_MANAGER))
-#define CSD_IS_WACOM_MANAGER_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE ((k), CSD_TYPE_WACOM_MANAGER))
-#define CSD_WACOM_MANAGER_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), CSD_TYPE_WACOM_MANAGER, CsdWacomManagerClass))
 
-typedef struct CsdWacomManagerPrivate CsdWacomManagerPrivate;
-
-typedef struct
-{
-        GObject                     parent;
-        CsdWacomManagerPrivate *priv;
-} CsdWacomManager;
-
-typedef struct
-{
-        GObjectClass   parent_class;
-} CsdWacomManagerClass;
-
-GType                   csd_wacom_manager_get_type            (void);
+G_DECLARE_FINAL_TYPE (CsdWacomManager, csd_wacom_manager, CSD, WACOM_MANAGER, GObject)
 
 CsdWacomManager *       csd_wacom_manager_new                 (void);
 gboolean                csd_wacom_manager_start               (CsdWacomManager *manager,

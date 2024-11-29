@@ -112,7 +112,7 @@ abs_to_percentage (int min, int max, int value)
         g_return_val_if_fail (max > min, -1);
         g_return_val_if_fail (value >= min, -1);
         g_return_val_if_fail (value <= max, -1);
-        return (((value - min) * 100) / (max - min));
+        return (CLAMP(((value - min) * 100) / (max - min), 0, 100));
 }
 #define ABS_TO_PERCENTAGE(min, max, value) abs_to_percentage(min, max, value)
 #define PERCENTAGE_TO_ABS(min, max, value) (min + (((max - min) * value) / 100))
@@ -164,6 +164,9 @@ struct CsdPowerManagerPrivate
         guint                    critical_time;
         guint                    low_percentage;
         guint                    low_time;
+        gboolean                 notify_keyboard;
+        gboolean                 notify_mouse;
+        gboolean                 notify_other_devices;
         gint                     pre_dim_brightness; /* level, not percentage */
         UpDevice                *device_composite;
         NotifyNotification      *notification_discharging;
@@ -217,7 +220,7 @@ static void      lock_screen_with_custom_saver (CsdPowerManager *manager, gchar 
 static void      activate_screensaver (CsdPowerManager *manager, gboolean force_lock);
 static void      kill_lid_close_safety_timer (CsdPowerManager *manager);
 
-int             backlight_get_output_id (CsdPowerManager *manager);
+static void      backlight_get_output_id (CsdPowerManager *manager, gint *xout, gint *yout);
 
 #if UP_CHECK_VERSION(0,99,0)
 static void device_properties_changed_cb (UpDevice *device, GParamSpec *pspec, CsdPowerManager *manager);
@@ -499,6 +502,25 @@ engine_get_warning (CsdPowerManager *manager, UpDevice *device)
         /* if the device in question is on ac, don't give a warning */
         if (state == UP_DEVICE_STATE_CHARGING)
                 goto out;
+
+        /* filter out unwanted warnings */
+        if (kind == UP_DEVICE_KIND_KEYBOARD) {
+
+                if (!manager->priv->notify_keyboard)
+                        goto out;
+
+        } else if (kind == UP_DEVICE_KIND_MOUSE) {
+
+                if (!manager->priv->notify_mouse)
+                        goto out;
+
+        } else if (kind != UP_DEVICE_KIND_BATTERY &&
+                   kind != UP_DEVICE_KIND_UPS) {
+
+                if (!manager->priv->notify_other_devices)
+                        goto out;
+
+        }
 
         if (kind == UP_DEVICE_KIND_MOUSE ||
             kind == UP_DEVICE_KIND_KEYBOARD) {
@@ -914,10 +936,10 @@ engine_update_composite_device (CsdPowerManager *manager,
                       "state", state,
                       NULL);
 
-        /* force update of icon */
-        if (engine_recalculate_state_icon (manager))
-                engine_emit_changed (manager, TRUE, FALSE);
 out:
+        /* force update of icon */
+	engine_recalculate_state (manager);
+	
         /* return composite device or original device */
         return device;
 }
@@ -1773,6 +1795,17 @@ engine_device_changed_cb (UpClient *client, UpDevice *device, CsdPowerManager *m
         engine_recalculate_state (manager);
 }
 
+static void
+refresh_notification_settings (CsdPowerManager *manager)
+{
+        manager->priv->notify_keyboard = g_settings_get_boolean (manager->priv->settings,
+                                                                      "power-notifications-for-keyboard");
+        manager->priv->notify_mouse = g_settings_get_boolean (manager->priv->settings,
+                                                                      "power-notifications-for-mouse");
+        manager->priv->notify_other_devices = g_settings_get_boolean (manager->priv->settings,
+                                                                      "power-notifications-for-other-devices");
+}
+
 static UpDevice *
 engine_get_primary_device (CsdPowerManager *manager)
 {
@@ -2440,6 +2473,8 @@ up_client_changed_cb (UpClient *client, CsdPowerManager *manager)
                 do_lid_closed_action (manager);
         else
                 do_lid_open_action (manager);
+	
+	engine_recalculate_state (manager);
 }
 
 typedef enum {
@@ -2671,19 +2706,19 @@ out:
         return ret;
 }
 
-int
-backlight_get_output_id (CsdPowerManager *manager)
+static void
+backlight_get_output_id (CsdPowerManager *manager,
+                         gint *xout, gint *yout)
 {
         GnomeRROutput *output = NULL;
         GnomeRROutput **outputs;
         GnomeRRCrtc *crtc;
-        GdkScreen *gdk_screen;
         gint x, y;
         guint i;
 
         outputs = gnome_rr_screen_list_outputs (manager->priv->x11_screen);
         if (outputs == NULL)
-                return -1;
+                return;
 
         for (i = 0; outputs[i] != NULL; i++) {
                 if (gnome_rr_output_is_connected (outputs[i]) &&
@@ -2694,16 +2729,16 @@ backlight_get_output_id (CsdPowerManager *manager)
         }
 
         if (output == NULL)
-                return -1;
+                return;
 
         crtc = gnome_rr_output_get_crtc (output);
         if (crtc == NULL)
-                return -1;
+                return;
 
-        gdk_screen = gdk_screen_get_default ();
         gnome_rr_crtc_get_position (crtc, &x, &y);
 
-        return gdk_screen_get_monitor_at_point (gdk_screen, x, y);
+        *xout = x;
+        *yout = y;
 }
 
 static gint
@@ -2727,6 +2762,14 @@ backlight_get_abs (CsdPowerManager *manager, GError **error)
 }
 
 static gint
+min_abs_brightness (CsdPowerManager *manager, gint min, gint max)
+{
+    guint min_percent = g_settings_get_uint (manager->priv->settings, "minimum-display-brightness");
+
+    return (min + ((max - min) / 100 * min_percent));
+}
+
+static gint
 backlight_get_percentage (CsdPowerManager *manager, GError **error)
 {
         GnomeRROutput *output;
@@ -2747,7 +2790,8 @@ backlight_get_percentage (CsdPowerManager *manager, GError **error)
                         now = gnome_rr_output_get_backlight (output, error);
                         if (now < 0)
                                 goto out;
-                        value = ABS_TO_PERCENTAGE (min, max, now);
+
+                        value = ABS_TO_PERCENTAGE (min_abs_brightness (manager, min, max), max, now);
                         goto out;
                 }
         }
@@ -2759,7 +2803,8 @@ backlight_get_percentage (CsdPowerManager *manager, GError **error)
         now = backlight_helper_get_value ("get-brightness", manager, error);
         if (now < 0)
                 goto out;
-        value = ABS_TO_PERCENTAGE (min, max, now);
+
+        value = ABS_TO_PERCENTAGE (min_abs_brightness (manager, min, max), max, now);
 out:
         return value;
 }
@@ -2845,7 +2890,7 @@ backlight_set_percentage (CsdPowerManager *manager,
                                 g_warning ("no xrandr backlight capability");
                                 goto out;
                         }
-                        discrete = PERCENTAGE_TO_ABS (min, max, value);
+                        discrete = CLAMP (PERCENTAGE_TO_ABS (min_abs_brightness (manager, min, max), max, value), min_abs_brightness (manager, min, max), max);
                         ret = gnome_rr_output_set_backlight (output,
                                                              discrete,
                                                              error);
@@ -2857,7 +2902,8 @@ backlight_set_percentage (CsdPowerManager *manager,
         max = backlight_helper_get_value ("get-max-brightness", manager, error);
         if (max < 0)
                 goto out;
-        discrete = PERCENTAGE_TO_ABS (min, max, value);
+
+        discrete = CLAMP (PERCENTAGE_TO_ABS (min_abs_brightness (manager, min, max), max, value), min_abs_brightness (manager, min, max), max);
         ret = backlight_helper_set_value ("set-brightness",
                                           discrete,
                                           manager,
@@ -2902,13 +2948,14 @@ backlight_step_up (CsdPowerManager *manager, GError **error)
                         now = gnome_rr_output_get_backlight (output, error);
                         if (now < 0)
                                goto out;
-                        step = BRIGHTNESS_STEP_AMOUNT (max - min + 1);
+
+                        step = BRIGHTNESS_STEP_AMOUNT (max - min_abs_brightness (manager, min, max));
                         discrete = MIN (now + step, max);
                         ret = gnome_rr_output_set_backlight (output,
                                                              discrete,
                                                              error);
                         if (ret)
-                                percentage_value = ABS_TO_PERCENTAGE (min, max, discrete);
+                                percentage_value = ABS_TO_PERCENTAGE (min_abs_brightness (manager, min, max), max, discrete);
                         goto out;
                 }
         }
@@ -2920,14 +2967,14 @@ backlight_step_up (CsdPowerManager *manager, GError **error)
         max = backlight_helper_get_value ("get-max-brightness", manager, error);
         if (max < 0)
                 goto out;
-        step = BRIGHTNESS_STEP_AMOUNT (max - min + 1);
+        step = BRIGHTNESS_STEP_AMOUNT (max - min_abs_brightness (manager, min, max));
         discrete = MIN (now + step, max);
         ret = backlight_helper_set_value ("set-brightness",
                                           discrete,
                                           manager,
                                           error);
         if (ret)
-                percentage_value = ABS_TO_PERCENTAGE (min, max, discrete);
+                percentage_value = ABS_TO_PERCENTAGE (min_abs_brightness (manager, min, max), max, discrete);
 out:
         if (ret)
                 backlight_emit_changed (manager);
@@ -2968,13 +3015,13 @@ backlight_step_down (CsdPowerManager *manager, GError **error)
                         now = gnome_rr_output_get_backlight (output, error);
                         if (now < 0)
                                goto out;
-                        step = BRIGHTNESS_STEP_AMOUNT (max - min + 1);
-                        discrete = MAX (now - step, 0);
+                        step = BRIGHTNESS_STEP_AMOUNT (max - min_abs_brightness (manager, min, max));
+                        discrete = MAX (now - step, min_abs_brightness (manager, min, max));
                         ret = gnome_rr_output_set_backlight (output,
                                                              discrete,
                                                              error);
                         if (ret)
-                                percentage_value = ABS_TO_PERCENTAGE (min, max, discrete);
+                                percentage_value = ABS_TO_PERCENTAGE (min_abs_brightness (manager, min, max), max, discrete);
                         goto out;
                 }
         }
@@ -2986,14 +3033,14 @@ backlight_step_down (CsdPowerManager *manager, GError **error)
         max = backlight_helper_get_value ("get-max-brightness", manager, error);
         if (max < 0)
                 goto out;
-        step = BRIGHTNESS_STEP_AMOUNT (max - min + 1);
-        discrete = MAX (now - step, 0);
+        step = BRIGHTNESS_STEP_AMOUNT (max - min_abs_brightness (manager, min, max));
+        discrete = MAX (now - step, min_abs_brightness (manager, min, max));
         ret = backlight_helper_set_value ("set-brightness",
                                           discrete,
                                           manager,
                                           error);
         if (ret)
-                percentage_value = ABS_TO_PERCENTAGE (min, max, discrete);
+                percentage_value = ABS_TO_PERCENTAGE (min_abs_brightness (manager, min, max), max, discrete);
 out:
         if (ret)
                 backlight_emit_changed (manager);
@@ -3317,7 +3364,7 @@ idle_is_session_inhibited (CsdPowerManager *manager, guint mask)
  *  to adjust timeout, as related to current idle time, so the idle
  *  timeout will fire as designed.
  *
- *  Return value: timeout to set, adjusted acccording to current idle time.
+ *  Return value: timeout to set, adjusted according to current idle time.
  **/
 static guint
 idle_adjust_timeout (guint idle_time, guint timeout)
@@ -3847,6 +3894,11 @@ engine_settings_key_changed_cb (GSettings *settings,
 
         if (g_str_has_prefix (key, "backlight-helper")) {
                 backlight_override_settings_refresh (manager);
+                return;
+        }
+
+        if (g_str_has_prefix (key, "power-notifications")) {
+                refresh_notification_settings (manager);
                 return;
         }
 }
@@ -4390,6 +4442,8 @@ csd_power_manager_start (CsdPowerManager *manager,
         manager->priv->use_time_primary = g_settings_get_boolean (manager->priv->settings,
                                                                   "use-time-for-policy");
 
+        refresh_notification_settings (manager);
+
         /* create IDLETIME watcher */
         manager->priv->idletime = gpm_idletime_new ();
         g_signal_connect (manager->priv->idletime, "reset",
@@ -4785,10 +4839,16 @@ handle_method_call_screen (CsdPowerManager *manager,
                                                                 error);
                         g_error_free (error);
                 } else {
+                    // Gdk is not trustworthy for getting a monitor index - they could
+                    // be out of order from muffin's opinion, so send the output's
+                    // position and let Cinnamon tell us which monitor to react on.
+                    gint x, y;
+
+                    x = y = 0;
+                    backlight_get_output_id (manager, &x, &y);
                         g_dbus_method_invocation_return_value (invocation,
-                                                               g_variant_new ("(ui)",
-                                                                              value,
-                                                                              backlight_get_output_id (manager)));
+                                                               g_variant_new ("(uii)",
+                                                                              value, x, y));
                 }
         } else {
                 g_assert_not_reached ();
